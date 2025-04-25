@@ -1,16 +1,22 @@
-
-from PIL import ImageGrab
-from google.cloud import vision
 import os
 import io
-
 import tkinter as tk
 
+from PIL import ImageGrab
+from google.cloud import visionо
+
 if __name__== "__main__":
+    #globals:
+    #screen shot area:
     x = 0  # Левый верхний угол
     y = 150   # Верхний
     width = 800  # Ширина
     height = 470  # Высота
+    #entry data:
+    texts = []
+    text_idx = 0
+    #screenarea
+    screenshot_area = None
 
     path = os.path.dirname(os.path.abspath(__file__))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(path, "keys.json")
@@ -26,41 +32,9 @@ if __name__== "__main__":
         client = vision.ImageAnnotatorClient()
 
         response = client.text_detection(image=image, image_context=image_context)
-        texts = response.text_annotations
-        print(texts[0].description)
-        return texts[0].description
-
-    def capture_screenshot(show=False):
-        global width, height, x, y
-        screenshot = ImageGrab.grab(bbox=(x, y, x + width, y + height))
-        if show:
-            screenshot.show()
-        return screenshot
-
-    def create_overlay(x=100, y=100, w=300, h=200):
-        root = tk.Tk()
-
-        root.geometry(f"{w}x{h}+{x}+{y}")
-        root.attributes("-topmost", True)  # Поверх всех окон
-        root.attributes("-alpha", 0.4)     # Прозрачность окна (0.0 - полностью прозрачно, 1.0 - непрозрачно)
-
-        frame = tk.Frame(root, background='red', borderwidth=4, relief="solid")
-        frame.pack(fill="both", expand=True)
-
-        # Закрыть окно по нажатию ESC
-        root.bind("<Escape>", lambda e: root.destroy())
-        def on_window_resize(event):
-            global width, height, x, y
-            width = root.winfo_width()
-            height = root.winfo_height()
-            x = root.winfo_x()
-            y = root.winfo_y()
-    
-        # Привязываем событие изменения окна
-        root.bind("<Configure>", on_window_resize)
-        root.mainloop()
-
-    create_overlay(x=x, y=y, w=width, h=height)
+        annotations = response.text_annotations
+        print(annotations[0].description)
+        return annotations[0].description
 
     root = tk.Tk()
     root.geometry(f"1000x900+{width}+0")
@@ -75,6 +49,53 @@ if __name__== "__main__":
     scrollbar.pack(side="right", fill="y")
     scrollbarx.pack(side="bottom", fill="x")
     canvas.pack(side="left", fill="both", expand=True)
+
+    def capture_screenshot(show=False):
+        global width, height, x, y
+        magic_delta_x = 7
+        magic_delta_y = 32
+        screenshot = ImageGrab.grab(bbox=(x + magic_delta_x, y, x + magic_delta_x + width, y + height + magic_delta_y))
+        if show:
+            screenshot.show()
+        return screenshot
+
+    def create_screenschot_area(root):
+        screenshot_area = tk.Toplevel(root, bg="red")
+        screenshot_area.title("Screen shot area")
+        screenshot_area.geometry(f"{width}x{height}+{x}+{y}")
+        screenshot_area.attributes("-topmost", True)      # Поверх всех окон
+        screenshot_area.attributes("-transparentcolor", "white")
+        screenshot_area.attributes("-alpha", 0.5)
+
+        # Просто для наглядности добавим виджеты
+        label = tk.Label(screenshot_area, text="Screen shot area", bg="red", fg="blue", font=("Arial", 44))
+        label.pack(expand=True)
+
+        def on_resize(event):
+            global width, height, x, y
+            width = screenshot_area.winfo_width()
+            height = screenshot_area.winfo_height()
+            x = screenshot_area.winfo_x()
+            y = screenshot_area.winfo_y()
+            #label.config(text=f"{x} {y} {width} {height}")    
+        
+        # Привязываем событие изменения окна
+        screenshot_area.bind("<Configure>", on_resize)
+        return screenshot_area
+
+    def ss_area_visible():
+        global screenshot_area
+        if screenshot_area.winfo_exists() == 0:
+            screenshot_area = create_screenschot_area(root)
+        if screenshot_area.winfo_viewable():
+            screenshot_area.withdraw()
+        else:
+            screenshot_area.deiconify()
+
+    tk.Button(root, text="Scren shot area on/off", command=ss_area_visible).pack(pady="5")
+
+    screenshot_area = create_screenschot_area(root)
+
 
     result = ""
     def create_text(content=None):
@@ -141,10 +162,10 @@ if __name__== "__main__":
     button = tk.Button(root, text="Получить текст", command=lambda: get_input(entry3))
     button.pack(pady="10")
 
-    button = tk.Button(root, text="Распознать текст или Delete", command=lambda: ScreenRecongizePaste())
+    button = tk.Button(root, text="Распознать текст или Delete", command=ScreenRecongizePaste)
     button.pack(pady=(200,10))
 
-    button = tk.Button(root, text="Создать пустой or Home", command=lambda: create_text())
+    button = tk.Button(root, text="Создать пустой or Home", command=create_text)
     button.pack(pady="5")
 
     def save():
@@ -153,13 +174,8 @@ if __name__== "__main__":
             for text in texts:
                 f.write(text.get("1.0", tk.END) + "\n")
 
-    button = tk.Button(root, text="Сохранить файл", command=lambda: save())
+    button = tk.Button(root, text="Сохранить файл", command=save)
     button.pack(pady="5")
-
-    texts = []
-    text_idx = 0
-
-    root.bind("<Escape>", lambda event: root.destroy() if root else ...)
     
     def multy(event=None):
         if len(texts) > 0:
@@ -177,11 +193,13 @@ if __name__== "__main__":
             texts[-1].delete("1.0",tk.END)
             texts[-1].insert("1.0", text)
 
-    button = tk.Button(root, text="X(2) or End", command=lambda: multy())
+    button = tk.Button(root, text="X(2) or End", command=multy)
     button.pack(pady="5")
+
     root.bind("<Delete>", ScreenRecongizePaste)
     root.bind("<End>", multy)
     root.bind("<Home>", lambda event: create_text())
+    root.bind("<Escape>", lambda event: root.destroy() if root else ...)
     root.mainloop()
     root.destroy()
     
