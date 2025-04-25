@@ -1,10 +1,9 @@
-import keyboard
+
 from PIL import ImageGrab
-import time
 from google.cloud import vision
 import os
 import io
-import time
+
 import tkinter as tk
 
 if __name__== "__main__":
