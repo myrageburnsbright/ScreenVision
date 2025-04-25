@@ -37,6 +37,7 @@ def setup_root():
     root.geometry(f"1000x900+{width}+0")
     root.title("Распознавание текста")
     root.focus_set()
+    root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
 
     return root
 
@@ -267,6 +268,15 @@ def ScreenRecongizePaste(canvas):
     create_text(recognized_text, canvas)
 
 
+def on_close(root):
+    global texts
+
+    with open("reserv save.txt", "w", encoding="utf-8") as f:
+        for text in texts:
+            f.write(text.get("1.0", tk.END) + "\n")
+    root.destroy()
+
+
 def main():
     setup_conf()
 
@@ -276,7 +286,6 @@ def main():
     setup_screenshot_area(root=root)
 
     root.mainloop()
-    root.destroy()
 
 
 if __name__ == "__main__":
