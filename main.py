@@ -133,8 +133,8 @@ def create_screenschot_area(root):
         global width, height, x, y
         width = screenshot_area.winfo_width()
         height = screenshot_area.winfo_height()
-        x = screenshot_area.winfo_x()
-        y = screenshot_area.winfo_y()
+        x = screenshot_area.winfo_rootx()
+        y = screenshot_area.winfo_rooty()
         # label.config(text=f"{x} {y} {width} {height}")
 
     screenshot_area.bind("<Configure>", on_resize)
@@ -198,14 +198,14 @@ def recognize(frame):
 
 def capture_screenshot():
     global width, height, x, y
-    magic_delta_x = 7
-    magic_delta_y = 32
+    magic_delta_x = 0
+    magic_delta_y = 0
     screenshot = ImageGrab.grab(
         bbox=(
-            x + magic_delta_x,
+            x,
             y,
-            x + magic_delta_x + width,
-            y + height + magic_delta_y,
+            x + width,
+            y + height,
         )
     )
 
