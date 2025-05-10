@@ -1,19 +1,9 @@
 import os
 import io
 import tkinter as tk
-
+from tkinter import ttk
 from PIL import ImageGrab
 from google.cloud import vision
-
-# globals defaults:
-x = 0  # left
-y = 150  # top
-width = 800  # width
-height = 470  # height
-# entry data:
-texts = []
-# screenarea:
-screenshot_area = None
 
 
 class ApiClient:
@@ -26,267 +16,333 @@ class ApiClient:
         return cls._client
 
 
-# Setups:
 def setup_conf():
     path = os.path.dirname(os.path.abspath(__file__))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(path, "keys.json")
 
 
-def setup_root():
-    root = tk.Tk()
-    root.geometry(f"1000x900+{width}+0")
-    root.title("Распознавание текста")
-    root.focus_set()
-    root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
-
-    return root
-
-
-def setup_canvas(root):
-    canvas = tk.Canvas(root)
-    scrollbar = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
-    scrollbarx = tk.Scrollbar(root, orient="horizontal", command=canvas.xview)
-    canvas.config(yscrollcommand=scrollbar.set, xscrollcommand=scrollbarx.set)
-
-    scrollbar.pack(side="right", fill="y")
-    scrollbarx.pack(side="bottom", fill="x")
-    canvas.pack(side="left", fill="both", expand=True)
-    return canvas
-
-
-def setup_root_buttons(root, canvas):
-    tk.Button(
-        root,
-        text="Сделать скриншот и показать",
-        command=capture_screenshot_event,
-    ).pack(side="top", pady="10")
-    entry1 = tk.Entry(root)
-    entry1.pack(pady=(20, 0))
-
-    tk.Button(
-        root, text="Получить текст", command=lambda: get_input(entry1, canvas)
-    ).pack(pady="10")
-
-    entry2 = tk.Entry(root)
-    entry2.pack(pady=(10, 0))
-
-    tk.Button(
-        root, text="Получить текст", command=lambda: get_input(entry2, canvas)
-    ).pack(pady="10")
-
-    entry3 = tk.Entry(root)
-    entry3.pack(pady=(10, 0))
-
-    tk.Button(
-        root, text="Получить текст", command=lambda: get_input(entry3, canvas)
-    ).pack(pady="10")
-
-    tk.Button(
-        root,
-        text="Распознать текст или Delete",
-        command=lambda: ScreenRecongizePaste(canvas),
-    ).pack(pady=(200, 10))
-
-    tk.Button(
-        root, text="Создать пустой or Home", command=lambda: create_text(canvas=canvas)
-    ).pack(pady="5")
-
-    tk.Button(root, text="Сохранить файл", command=save).pack(pady="5")
-
-    tk.Button(root, text="X(2) or End", command=multy).pack(pady="5")
-
-    # Hotkeys
-    root.bind("<Delete>", lambda event: ScreenRecongizePaste(canvas))
-    root.bind("<End>", multy)
-    root.bind("<Home>", lambda event: create_text(canvas=canvas))
-    root.bind("<Escape>", lambda event: root.destroy() if root else ...)
-
-
-def setup_screenshot_area(root):
-    global screenshot_area
-    screenshot_area = create_screenschot_area(root)
-
-    tk.Button(
-        root, text="Scren shot area on/off", command=lambda: ss_area_visible(root)
-    ).pack(pady="5")
-
-
-# Utils:
-def create_screenschot_area(root):
-    screenshot_area = tk.Toplevel(root, bg="red")
-    screenshot_area.title("Screen shot area")
-    screenshot_area.geometry(f"{width}x{height}+{x}+{y}")
-    screenshot_area.attributes("-topmost", True)
-    screenshot_area.attributes("-transparentcolor", "white")
-    screenshot_area.attributes("-alpha", 0.5)
-
-    label = tk.Label(
-        screenshot_area,
-        text="Screen shot area",
-        bg="red",
-        fg="blue",
-        font=("Arial", 44),
-    )
-    label.pack(expand=True)
-
-    def on_resize(event):
-        global width, height, x, y
-        width = screenshot_area.winfo_width()
-        height = screenshot_area.winfo_height()
-        x = screenshot_area.winfo_rootx()
-        y = screenshot_area.winfo_rooty()
-        # label.config(text=f"{x} {y} {width} {height}")
-
-    screenshot_area.bind("<Configure>", on_resize)
-    return screenshot_area
-
-
-def create_text(content=None, canvas=None):
-    global texts
-    text_idx = len(texts)
-    text_area = tk.Text(canvas, height=7, width=56, font=("Arial", 9))
-    label = tk.Label(canvas, text=f"{int(text_idx + 1)}", font=("Arial", 13))
-
-    height_delta = 58
-    width_delta = 400
-    if text_idx % 2 == 0:
-        canvas.create_window(0, (text_idx) * height_delta, window=label, anchor="nw")
-        canvas.create_window(
-            24, (text_idx) * height_delta, window=text_area, anchor="nw"
+class MyTextBox(ttk.Frame):
+    def __init__(self, content_frame, id, content=""):
+        ttk.Frame.__init__(
+            self,
+            master=content_frame,
+            padding=1,
+            border=1,
+            relief="sunken",
+            style="My.TFrame",
         )
-    else:
-        canvas.create_window(
-            0 + width_delta, (text_idx - 1) * height_delta, window=label, anchor="nw"
+        self.id = id
+        frame = tk.Frame(self)
+        frame.pack(side="left", fill="y")
+
+        self.button = ttk.Button(
+            frame, text=str(id), style="My.TButton", width=3, command=self.__copy_in_new
         )
-        canvas.create_window(
-            24 + width_delta,
-            (text_idx - 1) * height_delta,
-            window=text_area,
-            anchor="nw",
+        self.button.pack(side="top", fill="y", expand=True)
+        self.buttonDel = tk.Button(
+            frame, text="X", width=1, height=1, command=self.__del_row
+        )
+        self.buttonDel.pack(side="left", fill="y")
+
+        self.text = tk.Text(self, height=5, font=("Arial", 12))
+        self.text.insert("1.0", content)
+        self.text.pack(side="left", fill="x")
+        self.text.config(bg="#A8D5BA")
+
+    def _change_id(self, id):
+        self.id = id
+        self.button.config(text=str(id))
+
+    def __del_row(self):
+        self.destroy()
+        self.master._relayout_grid(self.id)
+
+    def __copy_in_new(self):
+        self.master.add_row(self.text.get("1.0", "end"))
+
+
+class Control_Frame(ttk.Frame):
+    def __init__(self, parent):
+        ttk.Frame.__init__(self, master=parent, padding=4, border=4, relief="sunken")
+        pack_params = {"side": "top", "fill": "x", "padx": 5, "pady": 6}
+        pack_params_bottom = {"side": "bottom", "fill": "x", "padx": 5, "pady": 6}
+
+        frame = ttk.Frame(self)
+        frame.pack(side="top", fill="both", padx=5, pady=6)
+        for row in range(6):
+            frame.rowconfigure(row, weight=1)
+            frame.columnconfigure(0, weight=0)
+            frame.columnconfigure(1, weight=5)
+            entry = tk.Entry(frame, width=4, font=("Arial", 17))
+            entry.grid(row=row, column=0, padx=2, pady=5, sticky="nsew")
+            tk.Button(
+                frame,
+                text="  Получить текст по ID  ",
+                command=lambda e=entry: self.get_input(e),
+            ).grid(row=row, column=1, padx=2, pady=5, sticky="nsew")
+
+        tk.Button(
+            self,
+            text="Распознать текст или Delete",
+            command=self.master.ScreenShotRecongize,
+        ).pack(**pack_params)
+
+        tk.Button(
+            self, text="Создать пустой or Home", command=lambda: self.master.add_row()
+        ).pack(**pack_params)
+
+        tk.Button(self, text="Сохранить файл", command=self.master.save).pack(
+            **pack_params_bottom
         )
 
-    if not content:
-        text_area.insert(f"{float(text_area.index('end-1c')) - 0.1}", "")
-
-    else:
-        text_area.insert(tk.END, content)
-    text_area.config(bg="#A8D5BA")
-    if len(texts) != 0:
-        texts[-1].config(bg="white")
-
-    texts.append(text_area)
-    text_idx += 1
-    canvas.config(scrollregion=canvas.bbox("all"))
-    canvas.yview_moveto(1)
-
-
-def recognize(frame):
-    with io.BytesIO() as output:
-        frame.save(output, format="PNG")
-        content = output.getvalue()
-
-    image_context = vision.ImageContext(language_hints=["ru"])
-    image = vision.Image(content=content)
-
-    client = ApiClient.get_instance()
-
-    response = client.text_detection(image=image, image_context=image_context)
-    annotations = response.text_annotations
-    print(annotations[0].description)
-    return annotations[0].description
-
-
-def capture_screenshot():
-    global width, height, x, y
-    magic_delta_x = 0
-    magic_delta_y = 0
-    screenshot = ImageGrab.grab(
-        bbox=(
-            x,
-            y,
-            x + width,
-            y + height,
+        tk.Button(self, text="X(2) or End", command=self.master.multy).pack(
+            **pack_params
         )
-    )
 
-    return screenshot
+        tk.Button(
+            self,
+            text="Scren shot area on/off",
+            command=lambda: self.master.ss_area_visible(),
+        ).pack(**pack_params_bottom)
+
+        tk.Button(
+            self,
+            text="Сделать скриншот и показать",
+            command=self.master.capture_screenshot_and_show,
+        ).pack(**pack_params_bottom)
+
+    def get_input(self, entry):
+        user_input = entry.get()
+        if user_input.isdigit():
+
+            id = int(user_input)
+            self.master.copy_from_row(id)
+
+        print(f"Запрошена копия по айди {user_input}")
 
 
-# Callbacks
-def capture_screenshot_event():
-    screenshot = capture_screenshot()
-    screenshot.show()
+class Content_Frame(ttk.Frame):
+    def __init__(self, canvas):
+        ttk.Frame.__init__(self, master=canvas, padding=4, border=4, relief="sunken")
+        content_window_id = canvas.create_window((0, 0), window=self, anchor="nw")
 
+        self.bind(
+            "<Configure>",
+            lambda event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfig(content_window_id, width=event.width),
+        )
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.texts = []
+        self.canvas = canvas
 
-def multy(event=None):
-    if len(texts) > 0:
-        text = texts[-1].get("1.0", "end-1c")
-        if len(text) < 3:
-            text += "(2)"
+    def copy_from_row(self, id):
+        if id >= 0 and id < len(self.texts):
+            self.add_row(self.texts[id].text.get("1.0", "end-1c"))
         else:
-            if text[-3] == "(" and text[-2].isdigit() and text[-1] == ")":
-                tmp = list(text)
-                tmp[-2] = str(int(tmp[-2]) + 1)
-                text = "".join(tmp)
-            else:
+            print("Id out of range")
+
+    def add_row(self, content=""):
+        if len(self.texts) > 0:
+            self.texts[-1].text.config(bg="white")
+        id = len(self.texts)
+        mtxt2 = MyTextBox(self, id, content)
+        mtxt2.grid(row=id // 2, column=id % 2, padx=2, pady=5, sticky="nsew")
+        self.texts.append(mtxt2)
+
+    def _relayout_grid(self, id):
+        self.texts[id].destroy()
+        self.texts.pop(id)
+        for i in range(id, len(self.texts)):
+            self.texts[i].grid_forget()
+            self.texts[i]._change_id(i)
+            self.texts[i].grid(row=i // 2, column=i % 2, padx=2, pady=5, sticky="nsew")
+
+    def multy(self):
+        if len(self.texts) > 0:
+            text = self.texts[-1].text.get("1.0", "end-1c")
+            if len(text) < 3:
                 text += "(2)"
+            else:
+                if text[-3] == "(" and text[-2].isdigit() and text[-1] == ")":
+                    tmp = list(text)
+                    tmp[-2] = str(int(tmp[-2]) + 1)
+                    text = "".join(tmp)
+                else:
+                    text += "(2)"
 
-        texts[-1].delete("1.0", tk.END)
-        texts[-1].insert("1.0", text)
-
-
-def save():
-    global texts
-
-    with open("result.txt", "w", encoding="utf-8") as f:
-        for text in texts:
-            f.write(text.get("1.0", tk.END) + "\n")
-
-
-def ss_area_visible(root):
-    global screenshot_area
-    if screenshot_area.winfo_exists() == 0:
-        screenshot_area = create_screenschot_area(root)
-    if screenshot_area.winfo_viewable():
-        screenshot_area.withdraw()
-    else:
-        screenshot_area.deiconify()
+            self.texts[-1].text.delete("1.0", tk.END)
+            self.texts[-1].text.insert("1.0", text)
 
 
-def get_input(entry, canvas):
-    user_input = entry.get()
+class MainWindow(tk.Tk):
+    def __init__(self):
+        tk.Tk.__init__(self)
+        self.title("Recognizer")
+        self.geometry(f"1000x800+800+0")
 
-    if user_input.isdigit():
-        texts[-1].config(bg="white")
-        create_text(texts[int(user_input) - 1].get("1.0", "end-1c"), canvas=canvas)
-    print(f"Запрошена копия по айди {user_input}")
+    def setup(self):
+        # <self>   <canvas> <content_frame> </canvas> <controll_frame> <sb>  </self>
+        self.canvas = tk.Canvas(self, bg="lightblue")
+
+        self.scrollbar = ttk.Scrollbar(
+            self, orient="vertical", command=self.canvas.yview
+        )
+        self.canvas.config(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.control_frame = Control_Frame(self)
+        self.control_frame.pack(side="right", fill="y")
+
+        self.canvas.pack(side="right", fill="both", expand=True)
+
+        self.content_frame = Content_Frame(self.canvas)
+
+        self.screenshot_manager = ScreenShotManager(600, 370, 150, 150)
+        self.screenshot_manager.create_screenschot_area(self)
+
+        self.bind("<Delete>", lambda event: self.ScreenShotRecongize())
+        self.bind("<End>", lambda event: self.multy())
+        self.bind("<Home>", lambda event: self.add_row())
+        self.bind("<Escape>", lambda event: self.destroy() if self else ...)
+        self.focus_set()
+        self.protocol("WM_DELETE_WINDOW", lambda: self.__on_close())
+
+    def add_row(self, content=""):
+        self.content_frame.add_row(content)
+        self.canvas.yview_moveto(1)
+
+    def copy_from_row(self, id):
+        self.content_frame.copy_from_row(id)
+
+    def capture_screenshot_and_show(self):
+        self.screenshot_manager.show_screenshot()
+
+    def ss_area_visible(self):
+        self.screenshot_manager.ss_area_visible(self)
+
+    def ScreenShotRecongize(self):
+        recognized_text = self.screenshot_manager.GetAnnotations()
+        self.add_row(recognized_text)
+
+    def save(self):
+        with open("result.txt", "w", encoding="utf-8") as f:
+            for fr in self.content_frame.texts:
+                f.write(fr.text.get("1.0", tk.END) + "\n")
+
+    def multy(self):
+        self.content_frame.multy()
+
+    def __on_close(self):
+        texts = self.content_frame.texts
+
+        with open("reserv save.txt", "w", encoding="utf-8") as f:
+            for fr in texts:
+                f.write(fr.text.get("1.0", tk.END) + "\n")
+        self.destroy()
 
 
-def ScreenRecongizePaste(canvas):
-    scr = capture_screenshot()
-    recognized_text = recognize(scr)
-    create_text(recognized_text, canvas)
+class ScreenShotManager:
+
+    def __init__(self, width, height, x, y):
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        self.screenshot_area = None
+
+    def GetAnnotations(self):
+        scr = self.__capture_screenshot()
+        return self.__annotate(scr)
+
+    def show_screenshot(self):
+        scr = self.__capture_screenshot()
+        scr.show()
+
+    def __capture_screenshot(self):
+        magic_delta_x = 0
+        magic_delta_y = 0
+        screenshot = ImageGrab.grab(
+            bbox=(
+                self.x,
+                self.y,
+                self.x + self.width,
+                self.y + self.height,
+            )
+        )
+
+        return screenshot
+
+    def ss_area_visible(self, root):
+        if self.screenshot_area.winfo_exists() == 0:
+            self.screenshot_area = self.create_screenschot_area(root)
+        if self.screenshot_area.winfo_viewable():
+            self.screenshot_area.withdraw()
+        else:
+            self.screenshot_area.deiconify()
+
+    def create_screenschot_area(self, root):
+        screenshot_area = tk.Toplevel(root, bg="red")
+        screenshot_area.title("Screen shot area")
+        screenshot_area.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
+        screenshot_area.attributes("-topmost", True)
+        screenshot_area.attributes("-transparentcolor", "white")
+        screenshot_area.attributes("-alpha", 0.5)
+
+        label = tk.Label(
+            screenshot_area,
+            text="Screen shot area",
+            bg="red",
+            fg="blue",
+            font=("Arial", 44),
+        )
+        label.pack(expand=True)
+
+        def on_resize(event):
+            self.width = screenshot_area.winfo_width()
+            self.height = screenshot_area.winfo_height()
+            self.x = screenshot_area.winfo_rootx()
+            self.y = screenshot_area.winfo_rooty()
+
+        screenshot_area.bind("<Configure>", on_resize)
+        self.screenshot_area = screenshot_area
+        return screenshot_area
+
+    def __annotate(self, frame):
+        with io.BytesIO() as output:
+            frame.save(output, format="PNG")
+            content = output.getvalue()
+
+        image_context = vision.ImageContext(language_hints=["ru"])
+        image = vision.Image(content=content)
+
+        client = ApiClient.get_instance()
+
+        response = client.text_detection(image=image, image_context=image_context)
+        annotations = response.text_annotations
+        print(annotations[0].description)
+        return annotations[0].description
 
 
-def on_close(root):
-    global texts
-
-    with open("reserv save.txt", "w", encoding="utf-8") as f:
-        for text in texts:
-            f.write(text.get("1.0", tk.END) + "\n")
-    root.destroy()
-
-
-def main():
-    setup_conf()
-
-    root = setup_root()
-    canvas = setup_canvas(root=root)
-    setup_root_buttons(root=root, canvas=canvas)
-    setup_screenshot_area(root=root)
-
-    root.mainloop()
+def reg_styles():
+    style = ttk.Style()
+    style.configure(
+        "My.TButton",
+        width=4,
+        font=("Times", 13, "bold"),
+        padding=2,
+        background="lightblue",
+        foreground="black",
+    )
+    ttk.Style().configure("My.TFrame", background="lightgray")
 
 
 if __name__ == "__main__":
-    main()
+    setup_conf()
+    root = MainWindow()
+    reg_styles()
+    root.setup()
+    root.mainloop()
