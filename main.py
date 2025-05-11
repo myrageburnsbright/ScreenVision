@@ -182,13 +182,13 @@ class Control_Frame(ttk.Frame):
 
         tk.Button(
             self,
-            text="Распознать текст",
+            text="Распознать текст <Delete>",
             command=self.mediator.recognize_text,
         ).pack(**pack_params)
 
         tk.Button(
             self,
-            text="Добавить пустую строку",
+            text="Добавить пустую <Home>",
             command=self.mediator.add_empty_row,
         ).pack(**pack_params)
 
@@ -200,7 +200,7 @@ class Control_Frame(ttk.Frame):
 
         tk.Button(
             self,
-            text="Дублировать с нумерацией",
+            text="Дублировать(X2) <End>",
             command=self.mediator.multy,
         ).pack(**pack_params)
 
