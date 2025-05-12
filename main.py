@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import ImageGrab
 from google.cloud import vision
-
+from tkinter import dnd
 class ApiClient:
     _client = None
 
@@ -80,6 +80,11 @@ class MyTextBox(ttk.Frame):
             frame, text="X", width=1, height=1, command=self._del_row
         )
         self.buttonDel.pack(side="left", fill="y")
+        self.buttonDnd = tk.Button(
+            frame, text="sw"
+        )
+        self.buttonDnd.bind("<Button-1>", self._start_dnd)
+        self.buttonDnd.pack(side="left", fill="both", expand=True)
 
         self.text = tk.Text(self, height=5, font=("Arial", 12))
         self.text.insert("1.0", content)
@@ -92,10 +97,45 @@ class MyTextBox(ttk.Frame):
 
     def _del_row(self):
         self.mediator.delete_row(self.id)
+        
 
     def _copy_in_new(self):
         content = self.text.get("1.0", "end-1c")
         self.mediator.copy_row(content)
+
+    def _start_dnd(self, event):
+        if self.text.cget("bg") != "blue":
+            self.org_color = self.text.cget("bg")
+        dnd.dnd_start(self, event)
+
+    def dnd_commit(self, source, event):
+        if self != source:
+            temp = self.text.get("1.0", tk.END)
+            self.text.delete("1.0", tk.END)
+            self.text.insert("1.0", source.text.get("1.0", tk.END))
+            source.text.delete("1.0", tk.END)
+            source.text.insert("1.0", temp)
+
+    def dnd_leave(self, source, event):
+        if self != source:
+            self.text.config(bg=self.org_color)
+
+    def dnd_accept(self, source, event):
+        if self.text.cget("bg") != "blue":
+            self.org_color = self.text.cget("bg")
+        self.text.config(bg="blue")
+        return self
+
+    def dnd_enter(self, source, event):
+        pass
+
+    def dnd_motion(self, source, event):
+        pass
+
+    def dnd_end(self,target, event):
+        if target:
+            target.text.config(bg=target.org_color)
+        self.text.config(bg=self.org_color)
 
 class Content_Frame(ttk.Frame):
     def __init__(self, canvas, mediator=None):
@@ -168,7 +208,7 @@ class Control_Frame(ttk.Frame):
 
         frame = ttk.Frame(self)
         frame.pack(side="top", fill="both", padx=5, pady=6)
-        for row in range(6):
+        for row in range(8):
             frame.rowconfigure(row, weight=1)
             frame.columnconfigure(0, weight=0)
             frame.columnconfigure(1, weight=5)
@@ -349,7 +389,7 @@ if __name__ == "__main__":
     setup_conf()
     root = Root()
     
-    reg_styles()
+    reg_styles() # create tk.Tk if no instance presented
     
     canvas = tk.Canvas(root, bg="lightblue")
     
