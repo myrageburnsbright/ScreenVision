@@ -147,14 +147,17 @@ class Content_Frame(ttk.Frame):
 
         self.bind(
             "<Configure>",
-            lambda event: canvas.configure(scrollregion=canvas.bbox("all")),
-        )
+            lambda event: self.__on_configure())
         canvas.bind(
             "<Configure>",
             lambda event: canvas.itemconfig(content_window_id, width=event.width),
         )
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
+
+    def __on_configure(self):
+        self.master.configure(scrollregion=self.master.bbox("all"))
+        self.master.yview_moveto(1.0)
 
     def set_mediator(self, mediator):
         self.mediator = mediator
