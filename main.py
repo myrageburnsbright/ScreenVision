@@ -5,6 +5,8 @@ from tkinter import ttk, messagebox
 from PIL import ImageGrab
 from google.cloud import vision
 from tkinter import dnd
+
+
 class ApiClient:
     _client = None
 
@@ -14,9 +16,11 @@ class ApiClient:
             cls._client = vision.ImageAnnotatorClient()
         return cls._client
 
+
 def setup_conf():
     path = os.path.dirname(os.path.abspath(__file__))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(path, "keys.json")
+
 
 class AppMediator:
     def __init__(self, content_frame, text_recognizer):
@@ -40,7 +44,11 @@ class AppMediator:
 
     def save(self, reserve=False):
         try:
-            with open("result.txt" if not reserve else "reserv save.txt", "w", encoding="utf-8") as f:
+            with open(
+                "result.txt" if not reserve else "reserv save.txt",
+                "w",
+                encoding="utf-8",
+            ) as f:
                 for fr in self.content_frame.texts:
                     f.write(fr.text.get("1.0", tk.END).strip() + "\n\n")
         except Exception as e:
@@ -51,10 +59,11 @@ class AppMediator:
 
     def toggle_screenshot_area(self, root):
         self.text_recognizer.toggle_screenshot_area(root)
-    
-    def recognize_text(self): 
+
+    def recognize_text(self):
         content = self.text_recognizer.recognize_text()
         self.copy_row(content)
+
 
 class MyTextBox(ttk.Frame):
     def __init__(self, parent, mediator, id: int, content: str = ""):
@@ -77,12 +86,12 @@ class MyTextBox(ttk.Frame):
         )
         self.button.pack(side="top", fill="y", expand=True)
         self.buttonDel = tk.Button(
-            frame, text="X", width=1, height=1, command=self._del_row
+            frame, text="X", width=1, height=1, command=self.del_row
         )
+        self.buttonDel.bind("<Button-1>", self._start_dnd)
         self.buttonDel.pack(side="left", fill="y")
-        self.buttonDnd = tk.Button(
-            frame, text="sw"
-        )
+        self.buttonDnd = tk.Button(frame, text="sw")
+
         self.buttonDnd.bind("<Button-1>", self._start_dnd)
         self.buttonDnd.pack(side="left", fill="both", expand=True)
 
@@ -95,35 +104,52 @@ class MyTextBox(ttk.Frame):
         self.id = new_id
         self.button.config(text=str(new_id))
 
-    def _del_row(self):
+    def del_row(self):
         self.mediator.delete_row(self.id)
-        
 
     def _copy_in_new(self):
         content = self.text.get("1.0", "end-1c")
         self.mediator.copy_row(content)
 
     def _start_dnd(self, event):
-        if self.text.cget("bg") != "blue":
-            self.org_color = self.text.cget("bg")
+        if event.widget == self.buttonDnd:
+            if self.text.cget("bg") != "blue":
+                self.org_color = self.text.cget("bg")
+        else:
+            self.buttonDel.config(bg="red")
+            if self.text.cget("bg") != "red":
+                self.org_color = self.text.cget("bg")
+
         dnd.dnd_start(self, event)
 
     def dnd_commit(self, source, event):
         if self != source:
-            temp = self.text.get("1.0", tk.END)
-            self.text.delete("1.0", tk.END)
-            self.text.insert("1.0", source.text.get("1.0", tk.END))
-            source.text.delete("1.0", tk.END)
-            source.text.insert("1.0", temp)
+            if event.widget == source.buttonDnd:
+                temp = self.text.get("1.0", "end-1c")
+                self.text.delete("1.0", "end-1c")
+                self.text.insert("1.0", source.text.get("1.0", "end-1c"))
+                source.text.delete("1.0", "end-1c")
+                source.text.insert("1.0", temp)
+            elif event.widget == source.buttonDel:
+                if self.text.get("1.0", "end-1c").strip() != "":
+                    self.text.insert("end-1c", "\n" + source.text.get("1.0", "end-1c"))
+                else:
+                    self.text.insert("end-1c", source.text.get("1.0", "end-1c"))
+                source.del_row()
 
     def dnd_leave(self, source, event):
         if self != source:
             self.text.config(bg=self.org_color)
 
     def dnd_accept(self, source, event):
-        if self.text.cget("bg") != "blue":
-            self.org_color = self.text.cget("bg")
-        self.text.config(bg="blue")
+        if event.widget == source.buttonDnd:
+            if self.text.cget("bg") != "blue":
+                self.org_color = self.text.cget("bg")
+            self.text.config(bg="blue")
+        elif event.widget == source.buttonDel:
+            if self.text.cget("bg") != "red":
+                self.org_color = self.text.cget("bg")
+            self.text.config(bg="red")
         return self
 
     def dnd_enter(self, source, event):
@@ -132,10 +158,16 @@ class MyTextBox(ttk.Frame):
     def dnd_motion(self, source, event):
         pass
 
-    def dnd_end(self,target, event):
+    def dnd_end(self, target, event):
         if target:
             target.text.config(bg=target.org_color)
-        self.text.config(bg=self.org_color)
+        if event.widget == self.buttonDel:
+            if self.buttonDel.winfo_exists():
+                self.buttonDel.config(bg="white")
+
+        if self.text.winfo_exists():
+            self.text.config(bg=self.org_color)
+
 
 class Content_Frame(ttk.Frame):
     def __init__(self, canvas, mediator=None):
@@ -145,9 +177,7 @@ class Content_Frame(ttk.Frame):
         self.canvas = canvas
         self.texts = []
 
-        self.bind(
-            "<Configure>",
-            lambda event: self.__on_configure())
+        self.bind("<Configure>", lambda event: self.__on_configure())
         canvas.bind(
             "<Configure>",
             lambda event: canvas.itemconfig(content_window_id, width=event.width),
@@ -177,7 +207,9 @@ class Content_Frame(ttk.Frame):
             for i in range(row_id, len(self.texts)):
                 self.texts[i].grid_forget()
                 self.texts[i].update_id(i)
-                self.texts[i].grid(row=i // 2, column=i % 2, padx=2, pady=5, sticky="nsew")
+                self.texts[i].grid(
+                    row=i // 2, column=i % 2, padx=2, pady=5, sticky="nsew"
+                )
             if len(self.texts) > 0:
                 self.texts[-1].text.config(bg="#A8D5BA")
 
@@ -201,6 +233,7 @@ class Content_Frame(ttk.Frame):
                     text += "(2)"
             self.texts[-1].text.delete("1.0", tk.END)
             self.texts[-1].text.insert("1.0", text)
+
 
 class Control_Frame(ttk.Frame):
     def __init__(self, parent, mediator):
@@ -266,6 +299,7 @@ class Control_Frame(ttk.Frame):
             self.mediator.copy_from_row(id)
         else:
             messagebox.showerror("Error", "Please enter a valid ID")
+
 
 class ScreenShotManager:
     def __init__(self, width, height, x, y):
@@ -345,7 +379,10 @@ class ScreenShotManager:
         except Exception as e:
             raise Exception(f"Failed to annotate image: {e}")
 
-def pack_and_setup(root, mediator, canvas, control_frame, screenshot_manager, content_frame):
+
+def pack_and_setup(
+    root, mediator, canvas, control_frame, screenshot_manager, content_frame
+):
     root.set_mediator(mediator)
     content_frame.set_mediator(mediator)
     scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
@@ -354,6 +391,7 @@ def pack_and_setup(root, mediator, canvas, control_frame, screenshot_manager, co
     control_frame.pack(side="right", fill="y")
     canvas.pack(side="right", fill="both", expand=True)
     screenshot_manager.create_screenschot_area(root)
+
 
 def reg_styles():
     style = ttk.Style()
@@ -388,21 +426,24 @@ class Root(tk.Tk):
         self.mediator.save(True)
         self.destroy()
 
+
 if __name__ == "__main__":
     setup_conf()
     root = Root()
-    
-    reg_styles() # create tk.Tk if no instance presented
-    
+
+    reg_styles()  # create tk.Tk if no instance presented
+
     canvas = tk.Canvas(root, bg="lightblue")
-    
+
     content_frame = Content_Frame(canvas)
     screenshot_manager = ScreenShotManager(600, 370, 150, 150)
 
     mediator = AppMediator(content_frame, screenshot_manager)
-    
+
     control_frame = Control_Frame(root, mediator)
 
-    pack_and_setup(root, mediator, canvas, control_frame, screenshot_manager, content_frame)
-    
+    pack_and_setup(
+        root, mediator, canvas, control_frame, screenshot_manager, content_frame
+    )
+
     root.mainloop()
